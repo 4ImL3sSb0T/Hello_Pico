@@ -76,14 +76,21 @@ int main()
         uint16_t max_y = lcd_self.height;
 
         lcd_clear(BLACK);
+        lcd_fill((uint16_t)bar_x, 22, (uint16_t)(bar_x + 39), 28, CYAN);
+        for (i = 0; i < ball_count; i++) {
+            fill_circle(balls[i].x, balls[i].y, balls[i].r, balls[i].color);
+        }
+        lcd_fill(0, 0, max_x - 1, 18, 0x18E3);
+        snprintf(fps_text, sizeof(fps_text), "FPS:%lu", (unsigned long)fps);
+        lcd_show_string(4, 2, 120, 16, 16, fps_text, WHITE);
+        lcd_draw_hline(0, 19, max_x, GRAY);
+        lcd_flush();
 
         bar_x += bar_vx;
         if (bar_x < 0 || bar_x > (int16_t)max_x - 40) {
             bar_vx = -bar_vx;
             bar_x += bar_vx;
         }
-        lcd_fill((uint16_t)bar_x, 22, (uint16_t)(bar_x + 39), 28, CYAN);
-
         for (i = 0; i < ball_count; i++) {
             ball_t *b = &balls[i];
 
@@ -97,15 +104,7 @@ int main()
                 b->vy = -b->vy;
                 b->y += b->vy;
             }
-            fill_circle(b->x, b->y, b->r, b->color);
         }
-
-        lcd_fill(0, 0, max_x - 1, 18, 0x18E3);
-        snprintf(fps_text, sizeof(fps_text), "FPS:%lu", (unsigned long)fps);
-        lcd_show_string(4, 2, 120, 16, 16, fps_text, WHITE);
-        lcd_draw_hline(0, 19, max_x, GRAY);
-
-        lcd_flush();
 
         frames++;
         {

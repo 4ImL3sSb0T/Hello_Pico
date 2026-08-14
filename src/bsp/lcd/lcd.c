@@ -22,10 +22,17 @@
 
 #include "bsp/lcd/lcd.h"
 #include "lcdfont.h"
+#include "hardware/dma.h"
+#include "hardware/irq.h"
 
 
 uint16_t lcd_buf[LCD_PIXEL_MAX];
 lcd_obj_t lcd_self;
+
+static int lcd_dma_tx = -1;
+static int lcd_dma_rx = -1;
+static volatile bool lcd_dma_busy;
+static uint16_t lcd_dma_rx_dump;
 
 static void lcd_spi_8bit(void)
 {
@@ -35,6 +42,68 @@ static void lcd_spi_8bit(void)
 static void lcd_spi_16bit(void)
 {
     spi_set_format(SPI_PORT, 16, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+}
+
+void lcd_wait_idle(void)
+{
+    while (lcd_dma_busy) {
+        tight_loop_contents();
+    }
+}
+
+bool lcd_is_busy(void)
+{
+    return lcd_dma_busy;
+}
+
+static void lcd_dma_irq_handler(void)
+{
+    if (dma_channel_get_irq0_status(lcd_dma_rx)) {
+        dma_channel_acknowledge_irq0(lcd_dma_rx);
+        lcd_spi_8bit();
+        LCD_CS(1);
+        lcd_dma_busy = false;
+    }
+}
+
+static void lcd_dma_init(void)
+{
+    dma_channel_config tx_cfg;
+    dma_channel_config rx_cfg;
+
+    lcd_dma_tx = dma_claim_unused_channel(true);
+    lcd_dma_rx = dma_claim_unused_channel(true);
+
+    tx_cfg = dma_channel_get_default_config(lcd_dma_tx);
+    channel_config_set_transfer_data_size(&tx_cfg, DMA_SIZE_16);
+    channel_config_set_dreq(&tx_cfg, spi_get_dreq(SPI_PORT, true));
+    channel_config_set_read_increment(&tx_cfg, true);
+    channel_config_set_write_increment(&tx_cfg, false);
+    dma_channel_configure(lcd_dma_tx, &tx_cfg, &spi_get_hw(SPI_PORT)->dr, NULL, 0, false);
+
+    rx_cfg = dma_channel_get_default_config(lcd_dma_rx);
+    channel_config_set_transfer_data_size(&rx_cfg, DMA_SIZE_16);
+    channel_config_set_dreq(&rx_cfg, spi_get_dreq(SPI_PORT, false));
+    channel_config_set_read_increment(&rx_cfg, false);
+    channel_config_set_write_increment(&rx_cfg, false);
+    dma_channel_configure(lcd_dma_rx, &rx_cfg, &lcd_dma_rx_dump, &spi_get_hw(SPI_PORT)->dr, 0, false);
+
+    dma_channel_set_irq0_enabled(lcd_dma_rx, true);
+    irq_set_exclusive_handler(DMA_IRQ_0, lcd_dma_irq_handler);
+    irq_set_enabled(DMA_IRQ_0, true);
+}
+
+static void lcd_dma_start(const uint16_t *src, size_t count)
+{
+    while (spi_is_readable(SPI_PORT)) {
+        (void)spi_get_hw(SPI_PORT)->dr;
+    }
+
+    lcd_dma_busy = true;
+    dma_channel_set_read_addr(lcd_dma_tx, src, false);
+    dma_channel_set_trans_count(lcd_dma_tx, (uint32_t)count, false);
+    dma_channel_set_trans_count(lcd_dma_rx, (uint32_t)count, false);
+    dma_start_channel_mask((1u << lcd_dma_tx) | (1u << lcd_dma_rx));
 }
 
 /* LCD需要初始化一组命令/参数值。它们存储在此结构中 */
@@ -52,6 +121,7 @@ typedef struct
  */
 void lcd_write_cmd(uint8_t cmd)
 {
+    lcd_wait_idle();
     LCD_WR(0);
     LCD_CS(0);
     spi_write_blocking(SPI_PORT, &cmd, 1);
@@ -65,6 +135,7 @@ void lcd_write_cmd(uint8_t cmd)
  */
 void lcd_write_data(const uint8_t data[], int len)
 {
+    lcd_wait_idle();
     LCD_WR(1);
     LCD_CS(0);
     spi_write_blocking(SPI_PORT, data, len);
@@ -80,6 +151,7 @@ void lcd_write_data16(uint16_t data)
 {
     uint8_t dataBuf[2] = {0,0};
 
+    lcd_wait_idle();
     dataBuf[0] = data >> 8;
     dataBuf[1] = data & 0xFF;
     LCD_WR(1);
@@ -146,6 +218,7 @@ void lcd_clear(uint16_t color)
     uint32_t n = (uint32_t)lcd_self.width * lcd_self.height;
     uint32_t i;
 
+    lcd_wait_idle();
     for (i = 0; i < n; i++)
     {
         lcd_buf[i] = color;
@@ -182,6 +255,7 @@ void lcd_flush_rect(uint16_t x, uint16_t y, uint16_t xend, uint16_t yend)
     fb_w = lcd_self.width;
     rect_w = xend - x + 1;
 
+    lcd_wait_idle();
     lcd_set_window(x, y, xend, yend);
     LCD_WR(1);
     LCD_CS(0);
@@ -189,19 +263,21 @@ void lcd_flush_rect(uint16_t x, uint16_t y, uint16_t xend, uint16_t yend)
 
     if (x == 0 && xend == fb_w - 1)
     {
-        spi_write16_blocking(SPI_PORT, &lcd_buf[(uint32_t)y * fb_w],
-                             (size_t)rect_w * (yend - y + 1));
-    }
-    else
-    {
-        for (row = y; row <= yend; row++)
-        {
-            spi_write16_blocking(SPI_PORT, &lcd_buf[(uint32_t)row * fb_w + x], rect_w);
-        }
+        lcd_dma_start(&lcd_buf[(uint32_t)y * fb_w],
+                      (size_t)rect_w * (yend - y + 1));
+        return;
     }
 
-    lcd_spi_8bit();
-    LCD_CS(1);
+    for (row = y; row <= yend; row++)
+    {
+        lcd_dma_start(&lcd_buf[(uint32_t)row * fb_w + x], rect_w);
+        if (row < yend) {
+            lcd_wait_idle();
+            LCD_WR(1);
+            LCD_CS(0);
+            lcd_spi_16bit();
+        }
+    }
 }
 
 void lcd_flush(void)
@@ -223,6 +299,8 @@ void lcd_fill(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey, uint16_t color
 {
     uint16_t x;
     uint16_t y;
+
+    lcd_wait_idle();
 
     if (sx > ex)
     {
@@ -394,6 +472,7 @@ void lcd_draw_pixel(uint16_t x, uint16_t y, uint16_t color)
     {
         return;
     }
+    lcd_wait_idle();
     lcd_buf[(uint32_t)y * lcd_self.width + x] = color;
 }
 
@@ -803,6 +882,7 @@ void lcd_init(void)
    int cmd = 0;
    
    lcd_self.dir = 0;
+   lcd_dma_init();
    lcd_self.wr = LCD_NUM_WR;              /* 配置WR引脚 */
    lcd_self.cs = LCD_NUM_CS;              /* 配置CS引脚 */
    lcd_self.bl = LCD_NUM_BL;              /* 配置BL引脚 */

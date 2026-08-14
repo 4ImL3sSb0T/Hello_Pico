@@ -112,8 +112,10 @@ extern uint16_t lcd_buf[LCD_PIXEL_MAX];
 /* 函数声明 */
 void lcd_init(void);                                                                                                    /* 初始化LCD */
 void lcd_clear(uint16_t color);                                                                                         /* 只清帧缓冲，需再 lcd_flush */
-void lcd_flush(void);                                                                                                   /* 整帧推到面板 */
-void lcd_flush_rect(uint16_t x, uint16_t y, uint16_t xend, uint16_t yend);                                              /* 推一块脏区 */
+void lcd_wait_idle(void);                                                                                               /* 等上一帧 DMA 发完 */
+bool lcd_is_busy(void);                                                                                                 /* DMA 是否还在发 */
+void lcd_flush(void);                                                                                                   /* 启动 DMA 推整帧，立刻返回 */
+void lcd_flush_rect(uint16_t x, uint16_t y, uint16_t xend, uint16_t yend);                                              /* 启动 DMA 推脏区，立刻返回 */
 void lcd_scan_dir(uint8_t dir);                                                                                         /* 设置LCD的自动扫描方向(对RGB屏无效) */
 void lcd_write_cmd(uint8_t cmd);                                                                                        /* 设置LCD的自动扫描方向 */
 void lcd_write_data(const uint8_t data[], int len);                                                                     /* 发送数据到LCD */
