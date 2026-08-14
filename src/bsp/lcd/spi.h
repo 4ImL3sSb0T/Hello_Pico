@@ -34,6 +34,6 @@
 #define SPI_BAUD_RATE       10000000    /* SPI波特率 */
 
 /* 函数声明 */
-void spi1_init(void);                   /* 初始化SPI2 */
+void spi1_init(void);                   /* 初始化SPI1 */
 
 #endif

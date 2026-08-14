@@ -34,15 +34,15 @@ project(Hello_Pico C CXX ASM)
 pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
-# src/ 尚未移植完成，暂不编译其中源文件。移植后取消下面两段注释即可自动加入。
-# file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
-#         "${CMAKE_CURRENT_LIST_DIR}/src/*.c"
-#         "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp"
-#         "${CMAKE_CURRENT_LIST_DIR}/src/*.S"
-# )
+file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_LIST_DIR}/src/*.c"
+        "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/src/*.S"
+)
+# flash 尚未移植，先不编进去
+list(FILTER APP_SOURCES EXCLUDE REGEX "[\\/]flash[\\/]")
 
-add_executable(Hello_Pico Hello_Pico.c)
-# target_sources(Hello_Pico PRIVATE ${APP_SOURCES})
+add_executable(Hello_Pico Hello_Pico.c ${APP_SOURCES})
 
 pico_set_program_name(Hello_Pico "Hello_Pico")
 pico_set_program_version(Hello_Pico "0.1")

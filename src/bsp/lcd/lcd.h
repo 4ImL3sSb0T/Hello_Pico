@@ -27,8 +27,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pico/stdlib.h"
-#include "BSP/SPI/spi.h"
-#include "BSP/LED/led.h"
+#include "bsp/lcd/spi.h"
+#include "bsp/led/led.h"
 
 
 /* 引脚定义 */

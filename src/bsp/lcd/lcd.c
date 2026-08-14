@@ -20,7 +20,7 @@
  ****************************************************************************************************
  */
 
-#include "BSP/LCD/lcd.h"
+#include "bsp/lcd/lcd.h"
 #include "lcdfont.h"
 
 
@@ -97,14 +97,14 @@ void lcd_set_window(uint16_t xstar, uint16_t ystar,uint16_t xend,uint16_t yend)
         databuf[2] = (xend + 40) >> 8;
         databuf[3] = 0xFF & (xend + 40);
         lcd_write_cmd(lcd_self.setxcmd);
-        lcd_write_data(databuf, 32);
+        lcd_write_data(databuf, 4);
 
         databuf[0] = (ystar + 52) >> 8;
         databuf[1] = 0xFF & (ystar + 52);
         databuf[2] = (yend + 52) >> 8;
         databuf[3] = 0xFF & (yend + 52);
         lcd_write_cmd(lcd_self.setycmd);
-        lcd_write_data(databuf, 32);
+        lcd_write_data(databuf, 4);
     }
     else
     {
@@ -113,14 +113,14 @@ void lcd_set_window(uint16_t xstar, uint16_t ystar,uint16_t xend,uint16_t yend)
         databuf[2] = (xend + 52) >> 8;
         databuf[3] = 0xFF & (xend + 52);
         lcd_write_cmd(lcd_self.setxcmd);
-        lcd_write_data(databuf, 32);
+        lcd_write_data(databuf, 4);
 
         databuf[0] = (ystar + 40) >> 8;
         databuf[1] = 0xFF & (ystar + 40);
         databuf[2] = (yend + 40) >> 8;
         databuf[3] = 0xFF & (yend + 40);
         lcd_write_cmd(lcd_self.setycmd);
-        lcd_write_data(databuf, 32);
+        lcd_write_data(databuf, 4);
     }
 
     lcd_write_cmd(lcd_self.wramcmd);    /* 开始写入GRAM */
