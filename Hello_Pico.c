@@ -4,6 +4,7 @@
 #include "bsp/led/led.h"
 #include "bsp/lcd/spi.h"
 #include "bsp/lcd/lcd.h"
+#include "bsp/input/key.h"
 
 #define DISPLAY_HZ              60
 #define DISPLAY_INTERVAL_US     (1000000u / DISPLAY_HZ)
@@ -31,7 +32,9 @@ static int16_t bar_x = 0;
 static int16_t bar_vx = 5;
 static uint32_t frames;
 static uint32_t fps;
-static char fps_text[16];
+static char fps_text[24];
+static char key_text[12] = "KEY0";
+static uint16_t key_bar_color = 0x18E3;
 
 static async_context_poll_t loop;
 static async_at_time_worker_t display_worker;
@@ -110,9 +113,9 @@ static void app_draw(void)
     for (i = 0; i < ball_count; i++) {
         fill_circle(balls[i].x, balls[i].y, balls[i].r, balls[i].color);
     }
-    lcd_fill(0, 0, (uint16_t)(max_x - 1), 18, 0x18E3);
-    snprintf(fps_text, sizeof(fps_text), "FPS:%lu", (unsigned long)fps);
-    lcd_show_string(4, 2, 120, 16, 16, fps_text, WHITE);
+    lcd_fill(0, 0, (uint16_t)(max_x - 1), 18, key_bar_color);
+    snprintf(fps_text, sizeof(fps_text), "FPS:%lu %s", (unsigned long)fps, key_text);
+    lcd_show_string(4, 2, 232, 16, 16, fps_text, WHITE);
     lcd_draw_hline(0, 19, max_x, GRAY);
 }
 
@@ -141,16 +144,48 @@ static void stats_work(async_context_t *context, async_at_time_worker_t *worker)
     async_context_add_at_time_worker_in_ms(context, worker, STATS_INTERVAL_MS);
 }
 
+static void on_key0(Button *btn)
+{
+    switch (button_get_event(btn)) {
+    case BTN_PRESS_DOWN:
+        key_bar_color = BLUE;
+        snprintf(key_text, sizeof(key_text), "DOWN");
+        break;
+    case BTN_SINGLE_CLICK:
+        key_bar_color = GREEN;
+        snprintf(key_text, sizeof(key_text), "CLICK");
+        break;
+    case BTN_DOUBLE_CLICK:
+        key_bar_color = YELLOW;
+        snprintf(key_text, sizeof(key_text), "DBL");
+        break;
+    case BTN_LONG_PRESS_START:
+        key_bar_color = RED;
+        snprintf(key_text, sizeof(key_text), "LONG");
+        break;
+    default:
+        break;
+    }
+    printf("KEY0 %s\n", key_text);
+}
+
 int main(void)
 {
     stdio_init_all();
     led_init();
     spi1_init();
     lcd_init();
+    key_init();
 
     if (!async_context_poll_init_with_defaults(&loop)) {
         return 1;
     }
+
+    key_bind(&loop.core);
+    key_attach(KEY_ID_0, BTN_PRESS_DOWN, on_key0);
+    key_attach(KEY_ID_0, BTN_SINGLE_CLICK, on_key0);
+    key_attach(KEY_ID_0, BTN_DOUBLE_CLICK, on_key0);
+    key_attach(KEY_ID_0, BTN_LONG_PRESS_START, on_key0);
 
     display_worker.do_work = display_work;
     stats_worker.do_work = stats_work;
