@@ -24,8 +24,18 @@
 #include "lcdfont.h"
 
 
-uint8_t lcd_buf[LCD_TOTAL_BUF_SIZE];
+uint16_t lcd_buf[LCD_PIXEL_MAX];
 lcd_obj_t lcd_self;
+
+static void lcd_spi_8bit(void)
+{
+    spi_set_format(SPI_PORT, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+}
+
+static void lcd_spi_16bit(void)
+{
+    spi_set_format(SPI_PORT, 16, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+}
 
 /* LCD需要初始化一组命令/参数值。它们存储在此结构中 */
 typedef struct
@@ -133,24 +143,74 @@ void lcd_set_window(uint16_t xstar, uint16_t ystar,uint16_t xend,uint16_t yend)
  */
 void lcd_clear(uint16_t color)
 {
-    uint16_t i, j;
-    uint8_t data[2] = {0};
+    uint32_t n = (uint32_t)lcd_self.width * lcd_self.height;
+    uint32_t i;
 
-    data[0] = color >> 8;
-    data[1] = color;
-
-    lcd_set_window(0, 0, lcd_self.width - 1, lcd_self.height - 1);
-
-    for(j = 0; j < LCD_BUF_SIZE / 2; j++)
+    for (i = 0; i < n; i++)
     {
-        lcd_buf[j * 2] =  data[0];
-        lcd_buf[j * 2 + 1] =  data[1];
+        lcd_buf[i] = color;
+    }
+}
+
+void lcd_flush_rect(uint16_t x, uint16_t y, uint16_t xend, uint16_t yend)
+{
+    uint16_t row;
+    uint16_t fb_w;
+    uint16_t rect_w;
+
+    if (lcd_self.width == 0 || lcd_self.height == 0)
+    {
+        return;
+    }
+    if (x >= lcd_self.width || y >= lcd_self.height)
+    {
+        return;
+    }
+    if (xend >= lcd_self.width)
+    {
+        xend = lcd_self.width - 1;
+    }
+    if (yend >= lcd_self.height)
+    {
+        yend = lcd_self.height - 1;
+    }
+    if (x > xend || y > yend)
+    {
+        return;
     }
 
-    for(i = 0; i < (LCD_TOTAL_BUF_SIZE / LCD_BUF_SIZE); i++)
+    fb_w = lcd_self.width;
+    rect_w = xend - x + 1;
+
+    lcd_set_window(x, y, xend, yend);
+    LCD_WR(1);
+    LCD_CS(0);
+    lcd_spi_16bit();
+
+    if (x == 0 && xend == fb_w - 1)
     {
-        lcd_write_data(lcd_buf, LCD_BUF_SIZE);
+        spi_write16_blocking(SPI_PORT, &lcd_buf[(uint32_t)y * fb_w],
+                             (size_t)rect_w * (yend - y + 1));
     }
+    else
+    {
+        for (row = y; row <= yend; row++)
+        {
+            spi_write16_blocking(SPI_PORT, &lcd_buf[(uint32_t)row * fb_w + x], rect_w);
+        }
+    }
+
+    lcd_spi_8bit();
+    LCD_CS(1);
+}
+
+void lcd_flush(void)
+{
+    if (lcd_self.width == 0 || lcd_self.height == 0)
+    {
+        return;
+    }
+    lcd_flush_rect(0, 0, lcd_self.width - 1, lcd_self.height - 1);
 }
 
 /**
@@ -161,23 +221,42 @@ void lcd_clear(uint16_t color)
  */
 void lcd_fill(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey, uint16_t color)
 {
-    uint16_t i;
-    uint16_t j;
-    uint16_t width;
-    uint16_t height;
+    uint16_t x;
+    uint16_t y;
 
-    width = ex - sx + 1;
-    height = ey - sy + 1;
-    lcd_set_window(sx, sy, ex, ey);
-
-    for (i = 0; i < height; i++)
+    if (sx > ex)
     {
-        for (j = 0; j < width; j++)
+        uint16_t t = sx;
+        sx = ex;
+        ex = t;
+    }
+    if (sy > ey)
+    {
+        uint16_t t = sy;
+        sy = ey;
+        ey = t;
+    }
+    if (sx >= lcd_self.width || sy >= lcd_self.height)
+    {
+        return;
+    }
+    if (ex >= lcd_self.width)
+    {
+        ex = lcd_self.width - 1;
+    }
+    if (ey >= lcd_self.height)
+    {
+        ey = lcd_self.height - 1;
+    }
+
+    for (y = sy; y <= ey; y++)
+    {
+        uint16_t *row = &lcd_buf[(uint32_t)y * lcd_self.width];
+        for (x = sx; x <= ex; x++)
         {
-            lcd_write_data16(color);
+            row[x] = color;
         }
     }
-    lcd_set_window(sx, sy, ex, ey);
 }
 
 /**
@@ -298,7 +377,7 @@ void lcd_display_dir(uint8_t dir)
         lcd_self.setycmd    = 0X2B;
     }
 
-    lcd_scan_dir(lcd_self.dir);             /* 默认扫描方向 */
+    lcd_scan_dir(lcd_self.dir);
 }
 
 /**
@@ -311,8 +390,11 @@ void lcd_display_dir(uint8_t dir)
  */
 void lcd_draw_pixel(uint16_t x, uint16_t y, uint16_t color)
 {
-    lcd_set_cursor(x, y);
-    lcd_write_data16(color);
+    if (x >= lcd_self.width || y >= lcd_self.height)
+    {
+        return;
+    }
+    lcd_buf[(uint32_t)y * lcd_self.width + x] = color;
 }
 
 /**
@@ -472,98 +554,93 @@ void lcd_draw_circle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color)
  */
 void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mode, uint16_t color)
 {
-    uint8_t temp = 0,t1 = 0, t = 0;
     uint8_t *pfont = 0;
-    uint8_t csize = 0;                                      /* 得到字体一个字符对应点阵集所占的字节数 */
-    uint16_t colortemp = 0;
-    uint8_t sta = 0;
+    uint8_t col;
+    uint8_t row;
+    uint8_t char_w = size / 2;
+    uint8_t char_h = size;
 
-    csize = (size / 8 + ((size % 8) ? 1 : 0)) * (size / 2); /* 得到字体一个字符对应点阵集所占的字节数 */
-    chr = chr - ' ';                                        /* 得到偏移后的值（ASCII字库是从空格开始取模，所以-' '就是对应字符的字库） */
+    chr = chr - ' ';
 
-    if ((x > (lcd_self.width - size / 2)) || (y > (lcd_self.height - size)))
+    if ((x > (lcd_self.width - char_w)) || (y > (lcd_self.height - char_h)))
     {
         return;
     }
 
-    lcd_set_window(x, y, x + size / 2 - 1, y + size - 1);   /* (x,y,x+8-1,y+16-1) */
-
     switch (size)
     {
         case 12:
-            pfont = (uint8_t *)asc2_1206[chr];              /* 调用1206字体 */
+            pfont = (uint8_t *)asc2_1206[chr];
             break;
 
         case 16:
-            pfont = (uint8_t *)asc2_1608[chr];              /* 调用1608字体 */
+            pfont = (uint8_t *)asc2_1608[chr];
             break;
 
         case 24:
-            pfont = (uint8_t *)asc2_2412[chr];              /* 调用2412字体 */
+            pfont = (uint8_t *)asc2_2412[chr];
             break;
 
         case 32:
-            pfont = (uint8_t *)asc2_3216[chr];              /* 调用3216字体 */
+            pfont = (uint8_t *)asc2_3216[chr];
             break;
 
         default:
-            return ;
+            return;
     }
 
+    /* 字库是逐行：一行从左到右，高位在左。16 号一字一行；32 号一行两字节；24 号一行 8+4 位。 */
     if (size != 24)
     {
-        csize = (size / 8 + ((size % 8) ? 1 : 0)) * (size / 2);
-        
-        for (t = 0; t < csize; t++)
+        uint8_t bytes_per_row = (char_w + 7) / 8;
+
+        for (row = 0; row < char_h; row++)
         {
-            temp = pfont[t];                                /* 获取字符的点阵数据 */
-
-            for (t1 = 0; t1 < 8; t1++)
+            for (col = 0; col < char_w; col++)
             {
-                    if (temp & 0x80)
-                    {
-                        colortemp = color;
-                    }
-                    else if (mode == 0)                     /* 无效点,不显示 */
-                    {
-                        colortemp = 0xFFFF;
-                    }
+                uint8_t temp = pfont[row * bytes_per_row + col / 8];
 
-                    lcd_write_data16(colortemp);
-                    temp <<= 1;
+                if (temp & (0x80 >> (col % 8)))
+                {
+                    lcd_draw_pixel(x + col, y + row, color);
+                }
+                else if (mode == 0)
+                {
+                    lcd_draw_pixel(x + col, y + row, WHITE);
+                }
             }
         }
     }
     else
     {
-        csize = (size * 16) / 8;
-        
-        for (t = 0; t < csize; t++)
+        uint8_t t;
+        uint8_t t1;
+        uint8_t sta;
+        uint8_t temp;
+
+        col = 0;
+        row = 0;
+        for (t = 0; t < 48; t++)
         {
-            temp = asc2_2412[chr][t];
-
-            if (t % 2 == 0)
-            {
-                sta = 8;
-            }
-            else
-            {
-                sta = 4;
-            }
-
+            temp = pfont[t];
+            sta = (t % 2 == 0) ? 8 : 4;
             for (t1 = 0; t1 < sta; t1++)
             {
-                if(temp & 0x80)
+                if (temp & 0x80)
                 {
-                    colortemp = color;
+                    lcd_draw_pixel(x + col, y + row, color);
                 }
-                else if (mode == 0)                         /* 无效点,不显示 */
+                else if (mode == 0)
                 {
-                    colortemp = 0xFFFF;
+                    lcd_draw_pixel(x + col, y + row, WHITE);
                 }
-
-                lcd_write_data16(colortemp);
                 temp <<= 1;
+                col++;
+                if (col >= 12)
+                {
+                    col = 0;
+                    row++;
+                }
             }
         }
     }
@@ -786,7 +863,8 @@ void lcd_init(void)
    }
 
    lcd_display_dir(1);                                             /* 设置屏幕方向 */
-   lcd_clear(WHITE);                                               /* 清屏 */
+   lcd_clear(WHITE);
+   lcd_flush();
    lcd_on();
 }
  

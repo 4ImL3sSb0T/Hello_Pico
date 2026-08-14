@@ -13,6 +13,7 @@ int main()
 
     lcd_show_string(10, 20, 220, 32, 16, "Hello Pico", RED);
     lcd_show_string(10, 50, 220, 32, 16, "RP2350A LCD", BLUE);
+    lcd_flush();
 
     printf("Hello Pico started\n");
 

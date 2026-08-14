@@ -101,17 +101,19 @@ typedef struct _lcd_obj_t
 	uint16_t        rst;            /* 复位 */
 } lcd_obj_t;
 
-/* LCD缓存大小设置，修改此值时请注意！！！！修改这两个值时可能会影响以下函数 lcd_clear/lcd_fill/lcd_draw_line */
-#define LCD_TOTAL_BUF_SIZE      (240 * 135 * 2)
-#define LCD_BUF_SIZE            6480
+/* 单缓冲：RGB565，逻辑坐标 (x,y) -> lcd_buf[y * width + x] */
+#define LCD_PIXEL_MAX           (240 * 135)
+#define LCD_TOTAL_BUF_SIZE      (LCD_PIXEL_MAX * 2)
 
 /* 导出相关变量 */
 extern lcd_obj_t lcd_self;
-extern uint8_t lcd_buf[LCD_TOTAL_BUF_SIZE];
+extern uint16_t lcd_buf[LCD_PIXEL_MAX];
 
 /* 函数声明 */
 void lcd_init(void);                                                                                                    /* 初始化LCD */
-void lcd_clear(uint16_t color);                                                                                         /* 清屏函数 */
+void lcd_clear(uint16_t color);                                                                                         /* 只清帧缓冲，需再 lcd_flush */
+void lcd_flush(void);                                                                                                   /* 整帧推到面板 */
+void lcd_flush_rect(uint16_t x, uint16_t y, uint16_t xend, uint16_t yend);                                              /* 推一块脏区 */
 void lcd_scan_dir(uint8_t dir);                                                                                         /* 设置LCD的自动扫描方向(对RGB屏无效) */
 void lcd_write_cmd(uint8_t cmd);                                                                                        /* 设置LCD的自动扫描方向 */
 void lcd_write_data(const uint8_t data[], int len);                                                                     /* 发送数据到LCD */

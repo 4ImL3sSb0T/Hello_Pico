@@ -31,7 +31,7 @@
 #define SPI_CLK_GPIO_PIN    10          /* SPI1_CLK */
 #define SPI_MOSI_GPIO_PIN   11          /* SPI1_MOSI */
 #define SPI_MISO_GPIO_PIN   12          /* SPI1_MISO */
-#define SPI_BAUD_RATE       10000000    /* SPI波特率 */
+#define SPI_BAUD_RATE       62500000    /* SPI波特率，ST7789 写周期常见上限 */
 
 /* 函数声明 */
 void spi1_init(void);                   /* 初始化SPI1 */
