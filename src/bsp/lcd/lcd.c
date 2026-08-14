@@ -765,7 +765,7 @@ void lcd_show_string(uint16_t x, uint16_t y, uint16_t width, uint16_t height, ui
 
         if (y >= height)break;  /* 退出 */
 
-        lcd_show_char(x, y, *p, size, 0, color);
+        lcd_show_char(x, y, *p, size, 1, color);
         x += size / 2;
         p++;
     }
