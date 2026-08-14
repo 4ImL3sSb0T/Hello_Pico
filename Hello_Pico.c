@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "pico/async_context_poll.h"
 #include "bsp/led/led.h"
 #include "bsp/lcd/spi.h"
 #include "bsp/lcd/lcd.h"
+
+#define DISPLAY_HZ              60
+#define DISPLAY_INTERVAL_US     (1000000u / DISPLAY_HZ)
+#define STATS_INTERVAL_MS       1000u
 
 typedef struct
 {
@@ -13,6 +18,24 @@ typedef struct
     int16_t r;
     uint16_t color;
 } ball_t;
+
+static ball_t balls[] = {
+    { 30,  40,  3,  2, 12, RED },
+    { 120, 70, -2,  3, 10, GREEN },
+    { 200, 50,  4, -3,  8, BLUE },
+    { 80, 100, -3, -2,  9, YELLOW },
+};
+static const int ball_count = (int)(sizeof(balls) / sizeof(balls[0]));
+
+static int16_t bar_x = 0;
+static int16_t bar_vx = 5;
+static uint32_t frames;
+static uint32_t fps;
+static char fps_text[16];
+
+static async_context_poll_t loop;
+static async_at_time_worker_t display_worker;
+static async_at_time_worker_t stats_worker;
 
 static void fill_circle(int16_t cx, int16_t cy, int16_t r, uint16_t color)
 {
@@ -49,72 +72,93 @@ static void fill_circle(int16_t cx, int16_t cy, int16_t r, uint16_t color)
     }
 }
 
-int main()
+static void app_simulate(void)
 {
-    ball_t balls[] = {
-        { 30,  40,  3,  2, 12, RED },
-        { 120, 70, -2,  3, 10, GREEN },
-        { 200, 50,  4, -3,  8, BLUE },
-        { 80, 100, -3, -2,  9, YELLOW },
-    };
-    const int ball_count = (int)(sizeof(balls) / sizeof(balls[0]));
-    uint32_t frames = 0;
-    uint32_t fps = 0;
-    uint64_t fps_t0 = time_us_64();
-    char fps_text[16];
-    int16_t bar_x = 0;
-    int16_t bar_vx = 5;
+    int i;
+    int16_t max_x = (int16_t)lcd_self.width;
+    int16_t max_y = (int16_t)lcd_self.height;
 
+    bar_x += bar_vx;
+    if (bar_x < 0 || bar_x > max_x - 40) {
+        bar_vx = (int16_t)-bar_vx;
+        bar_x += bar_vx;
+    }
+
+    for (i = 0; i < ball_count; i++) {
+        ball_t *b = &balls[i];
+
+        b->x += b->vx;
+        b->y += b->vy;
+        if (b->x < b->r || b->x > max_x - 1 - b->r) {
+            b->vx = (int16_t)-b->vx;
+            b->x += b->vx;
+        }
+        if (b->y < 32 + b->r || b->y > max_y - 1 - b->r) {
+            b->vy = (int16_t)-b->vy;
+            b->y += b->vy;
+        }
+    }
+}
+
+static void app_draw(void)
+{
+    int i;
+    uint16_t max_x = lcd_self.width;
+
+    lcd_clear(BLACK);
+    lcd_fill((uint16_t)bar_x, 22, (uint16_t)(bar_x + 39), 28, CYAN);
+    for (i = 0; i < ball_count; i++) {
+        fill_circle(balls[i].x, balls[i].y, balls[i].r, balls[i].color);
+    }
+    lcd_fill(0, 0, (uint16_t)(max_x - 1), 18, 0x18E3);
+    snprintf(fps_text, sizeof(fps_text), "FPS:%lu", (unsigned long)fps);
+    lcd_show_string(4, 2, 120, 16, 16, fps_text, WHITE);
+    lcd_draw_hline(0, 19, max_x, GRAY);
+}
+
+static void display_work(async_context_t *context, async_at_time_worker_t *worker)
+{
+    absolute_time_t next;
+
+    app_simulate();
+    app_draw();
+    lcd_flush();
+    frames++;
+
+    /* 按 60Hz 相位重挂；超时则从现在再走，不追帧。 */
+    next = delayed_by_us(worker->next_time, DISPLAY_INTERVAL_US);
+    if (absolute_time_diff_us(get_absolute_time(), next) < 0) {
+        next = get_absolute_time();
+    }
+    async_context_add_at_time_worker_at(context, worker, next);
+}
+
+static void stats_work(async_context_t *context, async_at_time_worker_t *worker)
+{
+    fps = frames;
+    frames = 0;
+    LED_TOGGLE();
+    async_context_add_at_time_worker_in_ms(context, worker, STATS_INTERVAL_MS);
+}
+
+int main(void)
+{
     stdio_init_all();
     led_init();
     spi1_init();
     lcd_init();
 
+    if (!async_context_poll_init_with_defaults(&loop)) {
+        return 1;
+    }
+
+    display_worker.do_work = display_work;
+    stats_worker.do_work = stats_work;
+    async_context_add_at_time_worker_in_ms(&loop.core, &display_worker, 0);
+    async_context_add_at_time_worker_in_ms(&loop.core, &stats_worker, STATS_INTERVAL_MS);
+
     while (true) {
-        int i;
-        uint16_t max_x = lcd_self.width;
-        uint16_t max_y = lcd_self.height;
-
-        lcd_clear(BLACK);
-        lcd_fill((uint16_t)bar_x, 22, (uint16_t)(bar_x + 39), 28, CYAN);
-        for (i = 0; i < ball_count; i++) {
-            fill_circle(balls[i].x, balls[i].y, balls[i].r, balls[i].color);
-        }
-        lcd_fill(0, 0, max_x - 1, 18, 0x18E3);
-        snprintf(fps_text, sizeof(fps_text), "FPS:%lu", (unsigned long)fps);
-        lcd_show_string(4, 2, 120, 16, 16, fps_text, WHITE);
-        lcd_draw_hline(0, 19, max_x, GRAY);
-        lcd_flush();
-
-        bar_x += bar_vx;
-        if (bar_x < 0 || bar_x > (int16_t)max_x - 40) {
-            bar_vx = -bar_vx;
-            bar_x += bar_vx;
-        }
-        for (i = 0; i < ball_count; i++) {
-            ball_t *b = &balls[i];
-
-            b->x += b->vx;
-            b->y += b->vy;
-            if (b->x < b->r || b->x > (int16_t)max_x - 1 - b->r) {
-                b->vx = -b->vx;
-                b->x += b->vx;
-            }
-            if (b->y < 32 + b->r || b->y > (int16_t)max_y - 1 - b->r) {
-                b->vy = -b->vy;
-                b->y += b->vy;
-            }
-        }
-
-        frames++;
-        {
-            uint64_t now = time_us_64();
-            if (now - fps_t0 >= 1000000) {
-                fps = frames;
-                frames = 0;
-                fps_t0 = now;
-                LED_TOGGLE();
-            }
-        }
+        async_context_poll(&loop.core);
+        async_context_wait_for_work_until(&loop.core, at_the_end_of_time);
     }
 }

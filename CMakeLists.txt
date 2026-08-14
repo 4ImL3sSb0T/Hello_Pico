@@ -56,7 +56,8 @@ pico_enable_stdio_usb(Hello_Pico 1)
 
 # Add the standard library to the build
 target_link_libraries(Hello_Pico
-        pico_stdlib)
+        pico_stdlib
+        pico_async_context_poll)
 
 set(APP_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}/src")
 target_include_directories(Hello_Pico PRIVATE
