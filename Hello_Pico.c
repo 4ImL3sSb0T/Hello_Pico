@@ -114,7 +114,8 @@ static void app_draw(void)
         fill_circle(balls[i].x, balls[i].y, balls[i].r, balls[i].color);
     }
     lcd_fill(0, 0, (uint16_t)(max_x - 1), 18, key_bar_color);
-    snprintf(fps_text, sizeof(fps_text), "FPS:%lu %s", (unsigned long)fps, key_text);
+    snprintf(fps_text, sizeof(fps_text), "FPS:%lu %s %u",
+             (unsigned long)fps, key_text, (unsigned)key_raw_level(KEY_ID_0));
     lcd_show_string(4, 2, 232, 16, 16, fps_text, WHITE);
     lcd_draw_hline(0, 19, max_x, GRAY);
 }
