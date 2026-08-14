@@ -49,6 +49,7 @@ void lcd_display_dir(uint8_t dir);
 void lcd_clear(uint16_t color);
 void lcd_fill(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey, uint16_t color);
 void lcd_draw_pixel(uint16_t x, uint16_t y, uint16_t color);
+uint16_t lcd_get_pixel(uint16_t x, uint16_t y);
 void lcd_draw_hline(uint16_t x, uint16_t y, uint16_t len, uint16_t color);
 void lcd_draw_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void lcd_draw_rectangle(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);

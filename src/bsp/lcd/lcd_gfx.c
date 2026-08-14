@@ -99,6 +99,16 @@ void lcd_draw_pixel(uint16_t x, uint16_t y, uint16_t color)
     lcd_put_pixel(x, y, color);
 }
 
+uint16_t lcd_get_pixel(uint16_t x, uint16_t y)
+{
+    lcd_lock_fb();
+    if (x >= lcd_self.width || y >= lcd_self.height)
+    {
+        return 0;
+    }
+    return lcd_buf[(uint32_t)y * lcd_self.width + x];
+}
+
 void lcd_draw_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
 {
     int16_t x = (int16_t)x1;

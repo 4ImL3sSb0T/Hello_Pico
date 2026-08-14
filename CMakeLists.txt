@@ -41,6 +41,8 @@ file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
 )
 # flash 尚未移植，先不编进去
 list(FILTER APP_SOURCES EXCLUDE REGEX "[\\/]flash[\\/]")
+# HAGL HAL 由 hagl_hal 目标编入，避免 GLOB 再编一次
+list(FILTER APP_SOURCES EXCLUDE REGEX "[\\/]hagl_hal[\\/]")
 
 add_executable(Hello_Pico Hello_Pico.c ${APP_SOURCES})
 
@@ -65,6 +67,18 @@ target_include_directories(Hello_Pico PRIVATE
         ${APP_INCLUDE_DIRS}
 )
 
+# HAGL 官方 CMake 会 link hagl_hal，必须先建好这个 target。
+add_library(hagl_hal INTERFACE)
+target_sources(hagl_hal INTERFACE
+        ${CMAKE_CURRENT_LIST_DIR}/src/service/hagl_hal/hagl_hal.c
+)
+target_include_directories(hagl_hal INTERFACE
+        ${CMAKE_CURRENT_LIST_DIR}/src/service/hagl_hal
+        ${CMAKE_CURRENT_LIST_DIR}/src
+)
+target_link_libraries(hagl_hal INTERFACE pico_stdlib)
+add_subdirectory(third_party/hagl)
+
 # Add any user requested libraries
 target_link_libraries(Hello_Pico 
         hardware_spi
@@ -75,6 +89,7 @@ target_link_libraries(Hello_Pico
         hardware_timer
         hardware_watchdog
         hardware_clocks
+        hagl
         )
 
 pico_add_extra_outputs(Hello_Pico)

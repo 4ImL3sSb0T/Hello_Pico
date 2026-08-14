@@ -1,10 +1,13 @@
 #include <stdio.h>
+#include <wchar.h>
 #include "pico/stdlib.h"
 #include "pico/async_context_poll.h"
 #include "bsp/led/led.h"
 #include "bsp/lcd/spi.h"
 #include "bsp/lcd/lcd.h"
 #include "bsp/input/key.h"
+#include "hagl.h"
+#include "font6x9-ISO8859-1.h"
 
 #define DISPLAY_HZ              60
 #define DISPLAY_INTERVAL_US     (1000000u / DISPLAY_HZ)
@@ -39,40 +42,19 @@ static uint16_t key_bar_color = 0x18E3;
 static async_context_poll_t loop;
 static async_at_time_worker_t display_worker;
 static async_at_time_worker_t stats_worker;
+static hagl_backend_t *display;
 
-static void fill_circle(int16_t cx, int16_t cy, int16_t r, uint16_t color)
+static void ascii_to_wchar(const char *src, wchar_t *dst, size_t n)
 {
-    int16_t y;
+    size_t i;
 
-    for (y = -r; y <= r; y++)
-    {
-        int16_t x;
-        int16_t span = 0;
-
-        for (x = 0; x <= r; x++)
-        {
-            if ((int32_t)x * x + (int32_t)y * y <= (int32_t)r * r)
-            {
-                span = x;
-            }
-        }
-        {
-            int16_t x0 = (int16_t)(cx - span);
-            int16_t x1 = (int16_t)(cx + span);
-            int16_t yy = (int16_t)(cy + y);
-
-            if (yy < 0) {
-                continue;
-            }
-            if (x0 < 0) {
-                x0 = 0;
-            }
-            if (x1 < x0) {
-                continue;
-            }
-            lcd_fill((uint16_t)x0, (uint16_t)yy, (uint16_t)x1, (uint16_t)yy, color);
-        }
+    if (n == 0) {
+        return;
     }
+    for (i = 0; (i + 1) < n && src[i] != '\0'; i++) {
+        dst[i] = (wchar_t)(unsigned char)src[i];
+    }
+    dst[i] = 0;
 }
 
 static void app_simulate(void)
@@ -106,18 +88,19 @@ static void app_simulate(void)
 static void app_draw(void)
 {
     int i;
-    uint16_t max_x = lcd_self.width;
+    wchar_t fps_wtext[24];
 
-    lcd_clear(BLACK);
-    lcd_fill((uint16_t)bar_x, 22, (uint16_t)(bar_x + 39), 28, CYAN);
+    hagl_clear(display);
+    hagl_fill_rectangle(display, bar_x, 22, (int16_t)(bar_x + 39), 28, CYAN);
     for (i = 0; i < ball_count; i++) {
-        fill_circle(balls[i].x, balls[i].y, balls[i].r, balls[i].color);
+        hagl_fill_circle(display, balls[i].x, balls[i].y, balls[i].r, balls[i].color);
     }
-    lcd_fill(0, 0, (uint16_t)(max_x - 1), 18, key_bar_color);
+    hagl_fill_rectangle(display, 0, 0, (int16_t)(display->width - 1), 18, key_bar_color);
     snprintf(fps_text, sizeof(fps_text), "FPS:%lu %s %u",
              (unsigned long)fps, key_text, (unsigned)key_raw_level(KEY_ID_0));
-    lcd_show_string(4, 2, 232, 16, 16, fps_text, WHITE);
-    lcd_draw_hline(0, 19, max_x, GRAY);
+    ascii_to_wchar(fps_text, fps_wtext, sizeof(fps_wtext) / sizeof(fps_wtext[0]));
+    hagl_put_text(display, fps_wtext, 4, 2, WHITE, font6x9_ISO8859_1);
+    hagl_draw_hline(display, 0, 19, (uint16_t)display->width, GRAY);
 }
 
 static void display_work(async_context_t *context, async_at_time_worker_t *worker)
@@ -126,7 +109,7 @@ static void display_work(async_context_t *context, async_at_time_worker_t *worke
 
     app_simulate();
     app_draw();
-    lcd_flush();
+    hagl_flush(display);
     frames++;
 
     /* 按 60Hz 相位重挂；超时则从现在再走，不追帧。 */
@@ -176,6 +159,10 @@ int main(void)
     led_init();
     spi1_init();
     lcd_init();
+    display = hagl_init();
+    if (!display || display->width == 0 || display->height == 0) {
+        return 1;
+    }
     key_init();
 
     if (!async_context_poll_init_with_defaults(&loop)) {
