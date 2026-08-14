@@ -46,6 +46,17 @@ list(FILTER APP_SOURCES EXCLUDE REGEX "[\\/]hagl_hal[\\/]")
 
 add_executable(Hello_Pico Hello_Pico.c ${APP_SOURCES})
 
+target_compile_definitions(Hello_Pico PRIVATE
+        PICO_HEAP_SIZE=0x8000
+        PICO_STACK_SIZE=0x4000
+)
+# 默认 SCRATCH_Y 只有 4KB。主 RAM 改为 500KB，Y 扩到 16KB 放 core0 栈。
+pico_set_linker_script_var(Hello_Pico RAM_LENGTH 0x7D000)
+pico_set_linker_script_var(Hello_Pico SCRATCH_X_ORIGIN 0x2007D000)
+pico_set_linker_script_var(Hello_Pico SCRATCH_X_LENGTH 0x1000)
+pico_set_linker_script_var(Hello_Pico SCRATCH_Y_ORIGIN 0x2007E000)
+pico_set_linker_script_var(Hello_Pico SCRATCH_Y_LENGTH 0x4000)
+
 pico_set_program_name(Hello_Pico "Hello_Pico")
 pico_set_program_version(Hello_Pico "0.1")
 
