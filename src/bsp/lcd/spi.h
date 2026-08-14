@@ -1,10 +1,10 @@
 /**
  ****************************************************************************************************
- * @file        led.c
+ * @file        spi.h
  * @author      正点原子团队(ALIENTEK)
  * @version     V1.0
  * @date        2025-01-03
- * @brief       LED驱动代码
+ * @brief       SPI驱动代码
  * @license     Copyright (c) 2020-2032, 广州市星翼电子科技有限公司
  ****************************************************************************************************
  * @attention
@@ -18,17 +18,22 @@
  ****************************************************************************************************
  */
 
-#include "led.h"
+#ifndef __SPI_H
+#define __SPI_H
+
+#include <string.h>
+#include "pico/stdlib.h"
+#include "hardware/spi.h"
 
 
-/**
- * @brief       初始化LED
- * @param       无 
- * @retval      无
- */
-void led_init(void)
-{
-    gpio_init(LED_GPIO_PIN);
-    gpio_set_dir(LED_GPIO_PIN, GPIO_OUT);
-    LED(1);     /* 关闭LED */
-}
+/* 引脚定义 */
+#define SPI_PORT            spi1
+#define SPI_CLK_GPIO_PIN    10          /* SPI1_CLK */
+#define SPI_MOSI_GPIO_PIN   11          /* SPI1_MOSI */
+#define SPI_MISO_GPIO_PIN   12          /* SPI1_MISO */
+#define SPI_BAUD_RATE       10000000    /* SPI波特率 */
+
+/* 函数声明 */
+void spi1_init(void);                   /* 初始化SPI2 */
+
+#endif
