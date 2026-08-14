@@ -194,7 +194,17 @@ int main(void)
     async_context_add_at_time_worker_in_ms(&loop.core, &stats_worker, STATS_INTERVAL_MS);
 
     while (true) {
+        absolute_time_t next;
+
         async_context_poll(&loop.core);
-        async_context_wait_for_work_until(&loop.core, at_the_end_of_time);
+        next = loop.core.next_time;
+        /* SDK 2.3.0 + RP2350：wait_for_work_until / sleep_until 可能 WFE
+         * 死等（硬件 alarm 未 armed）。busy_wait 只看 timer。 */
+        if (is_at_the_end_of_time(next)) {
+            next = make_timeout_time_ms(5);
+        }
+        if (!time_reached(next)) {
+            busy_wait_until(next);
+        }
     }
 }
