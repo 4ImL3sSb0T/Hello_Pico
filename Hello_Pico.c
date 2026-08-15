@@ -13,6 +13,14 @@
 #define DISPLAY_INTERVAL_US     (1000000u / DISPLAY_HZ)
 #define STATS_INTERVAL_MS       1000u
 
+#define WHITE                   0xFFFFu
+#define RED                     0xF800u
+#define GREEN                   0x07E0u
+#define BLUE                    0x001Fu
+#define YELLOW                  0xFFE0u
+#define CYAN                    0x07FFu
+#define GRAY                    0x8430u
+
 typedef struct
 {
     int16_t x;
@@ -60,8 +68,8 @@ static void ascii_to_wchar(const char *src, wchar_t *dst, size_t n)
 static void app_simulate(void)
 {
     int i;
-    int16_t max_x = (int16_t)lcd_self.width;
-    int16_t max_y = (int16_t)lcd_self.height;
+    int16_t max_x = display->width;
+    int16_t max_y = display->height;
 
     bar_x += bar_vx;
     if (bar_x < 0 || bar_x > max_x - 40) {

@@ -33,11 +33,12 @@ GPIO0/1 接板载 CH343 的 UART0。GPIO10–15 在分配表上是 SD 卡；LCD 
 Hello_Pico.c          # 入口 + 当前 demo（模拟 / 绘制 / 按键回调）
 blink.pio             # VS Code Pico 模板残留，已生成头文件，应用未用
 src/bsp/led/          # GPIO3
-src/bsp/lcd/          # ST7789 + SPI1 + DMA 单缓冲
+src/bsp/lcd/          # ST7789 + SPI1 + DMA + 帧缓冲，无图形原语
 src/bsp/input/        # KEY0 + MultiButton
 src/bsp/flash/        # W25Q32 空壳，CMake 已排除
 src/app/              # 预留，空
-src/service/          # 预留，空
+src/service/hagl_hal/ # HAGL 接到 lcd_fb / lcd_flush
+third_party/hagl/     # 图形库（圆、矩形、字、blit）
 docs/                 # 硬件手册，不是源码
 build/                # 本地构建，已 gitignore
 ```
@@ -50,7 +51,7 @@ build/                # 本地构建，已 gitignore
 
 主循环是 **`pico_async_context_poll`**，不是 RTOS，也不是 `sleep_ms` 空转：
 
-1. `stdio_init_all` → `led_init` → `spi1_init` → `lcd_init` → `key_init`
+1. `stdio_init_all` → `led_init` → `spi1_init` → `lcd_init` → `hagl_init` → `key_init`
 2. `key_bind(&loop.core)`，再 `key_attach` 事件
 3. `display_worker` 按 60Hz 相位重挂（超时不追帧）
 4. `stats_worker` 每秒算 FPS 并 `LED_TOGGLE`
@@ -60,10 +61,14 @@ Worker 里禁止长时间阻塞。定时用 `async_at_time_worker`，相位对�
 
 ### LCD
 
-- 应用只写 `lcd_buf`，再 `lcd_flush()` / `lcd_flush_rect()`
-- 单缓冲：`flush` 启动 DMA 后立刻返回；下一次绘制入口会 `lcd_lock_fb()` / `lcd_wait_idle()`
-- 不要在 IRQ 或 DMA 进行中直接改 `lcd_buf`
-- 总线细节在 `lcd_priv.h` / `lcd_bus.c`，应用只包含 `bsp/lcd/lcd.h`
+分层：应用只调 `hagl_*` → `src/service/hagl_hal` 写 `lcd_fb()` → `src/bsp/lcd` 负责 SPI/DMA/flush。
+
+- `lcd/` 只提供设备与帧缓冲：`lcd_init` / `lcd_fb` / `lcd_fb_lock` / `lcd_flush` / `lcd_flush_rect`
+- 不要在 `lcd/` 里加画圆、画线、字库或其它图形原语
+- 除 `hagl_hal` 和 `lcd_*` 自己外，不要写 `lcd_fb()`
+- 单缓冲：`flush` 启动 DMA 后立刻返回；HAL 每帧第一次下笔会 `lcd_fb_lock()`
+- 不要在 IRQ 或 DMA 进行中改帧缓冲
+- 总线细节在 `lcd_priv.h` / `lcd_bus.c`，应用绘制不要包含它们
 - SPI1 62.5 MHz，8bit 命令 / 16bit 像素 DMA；RX DMA 只为抽空 FIFO
 - 240×135 可见区嵌在 ST7789 240×320 GRAM，偏移在 `lcd.c` 的 `lcd_orient[]`，不要随便改 `colstart`/`rowstart`/`MADCTL`
 
@@ -113,7 +118,7 @@ picotool load build/Hello_Pico.uf2 -fx
 - 注释写非显而易见的约束（极性、时序、DMA、引脚复用），中文即可
 - include：应用/其他模块用 `"bsp/<mod>/<file>.h"`；LCD 内部才用 `lcd_priv.h`
 - 类型 `snake_case` + `_t`；宏全大写；GPIO 宏集中在对应 BSP 头文件
-- 颜色用 `lcd.h` 里的 RGB565 宏
+- 颜色用应用本地 RGB565 或 `hagl_color()`，不要把调色板放进 `lcd.h`
 - 第三方 `multi_button.*` 尽量少改；板级差异放 `key.c`
 
 ## Don't
@@ -121,6 +126,7 @@ picotool load build/Hello_Pico.uf2 -fx
 - 不要把 `src/bsp/flash/` 编进工程，除非已经按本板引脚把 W25Q32 真正移植完
 - 不要在 `display_work` 里再 `lcd_init` / 重配 SPI
 - 不要把 demo 状态（球、FPS、顶栏色）塞进 LCD/KEY 驱动
+- 不要绕过 HAGL 去调 `lcd_fb()` 画图
 - 不要假设 GPIO10–15 空闲
 - 不要改 `pico_sdk_import.cmake`（SDK 原样拷贝）
 - 没有单元测试；验证手段是编译 + 板子上的 USB 串口 `printf` 和屏显

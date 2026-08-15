@@ -144,6 +144,45 @@ void lcd_flush(void)
     lcd_flush_rect(0, 0, (uint16_t)(lcd_self.width - 1), (uint16_t)(lcd_self.height - 1));
 }
 
+uint16_t lcd_width(void)
+{
+    return lcd_self.width;
+}
+
+uint16_t lcd_height(void)
+{
+    return lcd_self.height;
+}
+
+uint16_t *lcd_fb(void)
+{
+    return lcd_buf;
+}
+
+void lcd_fb_lock(void)
+{
+    lcd_wait_idle();
+}
+
+static void lcd_fb_fill(uint16_t color)
+{
+    uint32_t n = (uint32_t)lcd_self.width * (uint32_t)lcd_self.height;
+    uint32_t pair = ((uint32_t)color << 16) | color;
+    uint32_t *p32 = (uint32_t *)(void *)lcd_buf;
+
+    if (n > LCD_PIXEL_MAX) {
+        n = LCD_PIXEL_MAX;
+    }
+
+    while (n >= 2) {
+        *p32++ = pair;
+        n -= 2;
+    }
+    if (n != 0) {
+        *(uint16_t *)(void *)p32 = color;
+    }
+}
+
 void lcd_on(void)
 {
     /* GPIO25 低电平打开 Q2(S8550)，点亮 LEDA。 */
@@ -208,7 +247,7 @@ void lcd_init(void)
     }
 
     lcd_display_dir(1);
-    lcd_clear(WHITE);
+    lcd_fb_fill(0xFFFF);
     lcd_flush();
     lcd_on();
 }

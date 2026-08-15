@@ -1,9 +1,9 @@
 /**
  * @file        hagl_hal.h
- * @brief       HAGL backend：只写现有 lcd_buf，flush 走 lcd_flush()
+ * @brief       HAGL backend：写 lcd_fb()，flush 走 lcd_flush()
  *
  * 不用官方 hagl_pico_mipi（它会自己占 SPI/DMA）。
- * 必须先 lcd_init() 再 hagl_init()。
+ * 必须先 lcd_init() 再 hagl_init()。圆 / 字 / clip 留给 HAGL。
  */
 
 #ifndef HAGL_HAL_H
