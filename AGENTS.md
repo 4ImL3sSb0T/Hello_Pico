@@ -27,6 +27,8 @@ GPIO0/1 接板载 CH343 的 UART0。GPIO10–15 在分配表上是 SD 卡；LCD 
 
 引脚权威来源：`docs/RaspberryPi-RP2350A小系统板IO引脚分配表.xlsx`，板卡说明：`docs/ATK-DNRP2350AM_V1.0.PDF`。改引脚先对这两份，再改宏。
 
+SDK 2.3.0 未修问题与规避：`docs/pico-sdk-2.3.0-bugs.md`。动 sleep / USB / DMA / PIO / GPIO 下拉 / TinyUSB 前先读，不要把已有规避改回去。
+
 ## Layout
 
 ```
@@ -39,7 +41,7 @@ src/bsp/flash/        # W25Q32 空壳，CMake 已排除
 src/app/              # 预留，空
 src/service/hagl_hal/ # HAGL 接到 lcd_fb / lcd_flush
 third_party/hagl/     # 图形库（圆、矩形、字、blit）
-docs/                 # 硬件手册，不是源码
+docs/                 # 硬件手册 + SDK 2.3.0 已知问题（pico-sdk-2.3.0-bugs.md）
 build/                # 本地构建，已 gitignore
 ```
 
@@ -55,7 +57,8 @@ build/                # 本地构建，已 gitignore
 2. `key_bind(&loop.core)`，再 `key_attach` 事件
 3. `display_worker` 按 60Hz 相位重挂（超时不追帧）
 4. `stats_worker` 每秒算 FPS 并 `LED_TOGGLE`
-5. `while (true) { poll; wait_for_work_until(at_the_end_of_time); }`
+5. `while (true) { poll; 若 next 未到则 busy_wait_until(next); }`
+   （不用 `wait_for_work_until`，原因见 `docs/pico-sdk-2.3.0-bugs.md`）
 
 Worker 里禁止长时间阻塞。定时用 `async_at_time_worker`，相位对齐抄 `display_work` / `key_tick_work`。
 
@@ -129,6 +132,7 @@ picotool load build/Hello_Pico.uf2 -fx
 - 不要绕过 HAGL 去调 `lcd_fb()` 画图
 - 不要假设 GPIO10–15 空闲
 - 不要改 `pico_sdk_import.cmake`（SDK 原样拷贝）
+- 不要违反 `docs/pico-sdk-2.3.0-bugs.md` 里的规避
 - 没有单元测试；验证手段是编译 + 板子上的 USB 串口 `printf` 和屏显
 
 ## Git
