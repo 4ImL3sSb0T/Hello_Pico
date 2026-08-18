@@ -12,7 +12,7 @@
 
 #define DISPLAY_HZ              60
 #define DISPLAY_INTERVAL_US     (1000000u / DISPLAY_HZ)
-#define STATS_INTERVAL_MS       1000u
+#define STATS_INTERVAL_MS       500u
 
 #define WHITE                   0xFFFFu
 #define RED                     0xF800u
@@ -52,6 +52,7 @@ static async_context_poll_t loop;
 static async_at_time_worker_t display_worker;
 static async_at_time_worker_t stats_worker;
 static hagl_backend_t *display;
+uint32_t boot_count = 0;
 
 static void ascii_to_wchar(const char *src, wchar_t *dst, size_t n)
 {
@@ -98,6 +99,8 @@ static void app_draw(void)
 {
     int i;
     wchar_t fps_wtext[24];
+    wchar_t boot_count_wtext[24];
+    char boot_count_text[24];
 
     hagl_clear(display);
     hagl_fill_rectangle(display, bar_x, 22, (int16_t)(bar_x + 39), 28, CYAN);
@@ -108,7 +111,20 @@ static void app_draw(void)
     snprintf(fps_text, sizeof(fps_text), "FPS:%lu %s %u",
              (unsigned long)fps, key_text, (unsigned)key_raw_level(KEY_ID_0));
     ascii_to_wchar(fps_text, fps_wtext, sizeof(fps_wtext) / sizeof(fps_wtext[0]));
-    hagl_put_text(display, fps_wtext, 4, 2, WHITE, font6x9_ISO8859_1);
+    snprintf(boot_count_text, sizeof(boot_count_text), "Boot:%u", boot_count);
+    ascii_to_wchar(boot_count_text, boot_count_wtext,
+                   sizeof(boot_count_wtext) / sizeof(boot_count_wtext[0]));
+    /* 6x9 字，左右分开，后画的不能盖住先画的。 */
+    hagl_put_text(display, fps_wtext, 4, 4, WHITE, font6x9_ISO8859_1);
+    {
+        size_t n = wcslen(boot_count_wtext);
+        int16_t boot_x = (int16_t)(display->width - 4 - (int16_t)(n * 6));
+
+        if (boot_x < 4) {
+            boot_x = 4;
+        }
+        hagl_put_text(display, boot_count_wtext, boot_x, 4, WHITE, font6x9_ISO8859_1);
+    }
     hagl_draw_hline(display, 0, 19, (uint16_t)display->width, GRAY);
 }
 
@@ -188,8 +204,8 @@ int main(void)
 
     int ret = lfs_file_open(lfs_handle, &file, "/log/bootcount.txt", LFS_O_RDWR | LFS_O_CREAT);
 
-    if (ret > 0) {
-        uint32_t boot_count = 0;
+    if (ret == LFS_ERR_OK) {
+
         lfs_file_read(lfs_handle, &file, &boot_count, sizeof(boot_count));
         boot_count++;
 
