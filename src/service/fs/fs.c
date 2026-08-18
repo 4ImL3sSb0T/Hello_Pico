@@ -1,8 +1,20 @@
+/**
+ * @file        fs.c
+ * @brief       LittleFS 挂在板载 W25Q32 尾部 256KB；擦写走 QMI，不用 SPI
+ */
+
 #include "fs.h"
-#include "stdint.h"
+
+#include <stdint.h>
+#include <string.h>
+
+#include "hardware/flash.h"
+#include "pico/flash.h"
 
 #define FS_SIZE     (256 * 1024)
 #define FS_OFFSET   (PICO_FLASH_SIZE_BYTES - FS_SIZE)
+
+extern char __flash_binary_end;
 
 static uint8_t lfs_read_buf[256];
 static uint8_t lfs_prog_buf[256];
@@ -62,7 +74,7 @@ static int pico_sync(const struct lfs_config *c)
     return LFS_ERR_OK;
 }
 
-const struct lfs_config pico_lfs_cfg = {
+static const struct lfs_config pico_lfs_cfg = {
     .read  = pico_read,
     .prog  = pico_prog,
     .erase = pico_erase,
@@ -80,20 +92,35 @@ const struct lfs_config pico_lfs_cfg = {
 };
 
 static lfs_t lfs;
-static bool lfs_init = false;
+static bool fs_ready;
 
 int fs_init(void)
 {
-    int err = lfs_mount(&lfs, &pico_lfs_cfg);
+    uint32_t fw_end = (uint32_t)&__flash_binary_end - XIP_BASE;
+    int err;
+
+    /* 分区在 Flash 尾巴，固件不能长进 FS_OFFSET */
+    if (fw_end > FS_OFFSET) {
+        return LFS_ERR_IO;
+    }
+
+    err = lfs_mount(&lfs, &pico_lfs_cfg);
     if (err) {
-        lfs_format(&lfs, &pico_lfs_cfg);   /* 会擦完全部分区，只要做一次 */
+        /* 无超块时 format 会擦完全部分区；已有数据 mount 失败也会被清掉 */
+        err = lfs_format(&lfs, &pico_lfs_cfg);
+        if (err) {
+            return err;
+        }
         err = lfs_mount(&lfs, &pico_lfs_cfg);
     }
-    lfs_init = !err;
+    fs_ready = (err == LFS_ERR_OK);
     return err;
 }
 
-lfs_t* fs_get_handle(void) {
-    if (!lfs_init) return NULL;
+lfs_t *fs_get_handle(void)
+{
+    if (!fs_ready) {
+        return NULL;
+    }
     return &lfs;
 }

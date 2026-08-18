@@ -100,6 +100,8 @@ target_link_libraries(Hello_Pico
         hardware_timer
         hardware_watchdog
         hardware_clocks
+        hardware_flash
+        pico_flash
         hagl
         )
 
