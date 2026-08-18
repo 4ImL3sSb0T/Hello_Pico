@@ -8,6 +8,7 @@
 #include "bsp/input/key.h"
 #include "hagl.h"
 #include "font6x9-ISO8859-1.h"
+#include "service/fs/fs.h"
 
 #define DISPLAY_HZ              60
 #define DISPLAY_INTERVAL_US     (1000000u / DISPLAY_HZ)
@@ -172,6 +173,34 @@ int main(void)
         return 1;
     }
     key_init();
+
+    int fs_ret = fs_init();
+
+    if (fs_ret != LFS_ERR_OK) {
+        printf("fs_init failed: %d\n", fs_ret);
+        return 1;
+    }
+
+    lfs_t *lfs_handle = fs_get_handle();
+    lfs_file_t file;
+
+    lfs_mkdir(lfs_handle, "/log");
+
+    int ret = lfs_file_open(lfs_handle, &file, "/log/bootcount.txt", LFS_O_RDWR | LFS_O_CREAT);
+
+    if (ret > 0) {
+        uint32_t boot_count = 0;
+        lfs_file_read(lfs_handle, &file, &boot_count, sizeof(boot_count));
+        boot_count++;
+
+        lfs_file_rewind(lfs_handle, &file);
+        lfs_file_write(lfs_handle, &file, &boot_count, sizeof(boot_count));
+        lfs_file_close(lfs_handle, &file);
+
+        printf("Boot count: %u\n", boot_count);
+    } else {
+        printf("Failed to open bootcount.txt: %d\n", ret);
+    }
 
     if (!async_context_poll_init_with_defaults(&loop)) {
         return 1;
