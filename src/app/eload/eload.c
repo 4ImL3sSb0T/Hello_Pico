@@ -28,6 +28,7 @@
 static uint8_t s_duty_percent;
 static uint16_t s_adc_raw;
 static uint32_t s_adc_mv;
+static char s_key_event[12] = "-";
 
 static void ascii_to_wchar(const char *src, wchar_t *dst, size_t n)
 {
@@ -57,19 +58,33 @@ static void on_key0(Button *btn)
 {
     switch (button_get_event(btn)) {
     case BTN_PRESS_DOWN:
-        /* 按下立刻改占空比。SINGLE_CLICK 要松手后再等 300ms，体感像没反应。 */
-        if (s_duty_percent >= ELOAD_DUTY_MAX_PERCENT) {
-            apply_duty(0);
-        } else {
+        /* 只更新状态，不改占空比。否则单击/双击/长按都会先 +1%。 */
+        snprintf(s_key_event, sizeof(s_key_event), "DOWN");
+        break;
+    case BTN_SINGLE_CLICK:
+        snprintf(s_key_event, sizeof(s_key_event), "CLICK");
+        if (s_duty_percent + ELOAD_DUTY_STEP_PERCENT <= ELOAD_DUTY_MAX_PERCENT) {
             apply_duty((uint8_t)(s_duty_percent + ELOAD_DUTY_STEP_PERCENT));
+        } else {
+            apply_duty(ELOAD_DUTY_MAX_PERCENT);
+        }
+        break;
+    case BTN_DOUBLE_CLICK:
+        snprintf(s_key_event, sizeof(s_key_event), "DBL");
+        if (s_duty_percent >= ELOAD_DUTY_STEP_PERCENT) {
+            apply_duty((uint8_t)(s_duty_percent - ELOAD_DUTY_STEP_PERCENT));
+        } else {
+            apply_duty(0);
         }
         break;
     case BTN_LONG_PRESS_START:
+        snprintf(s_key_event, sizeof(s_key_event), "LONG");
         apply_duty(0);
         break;
     default:
-        break;
+        return;
     }
+    printf("KEY0 %s duty %u%%\n", s_key_event, (unsigned)s_duty_percent);
 }
 
 void eload_init(void)
@@ -77,12 +92,15 @@ void eload_init(void)
     s_duty_percent = 0;
     s_adc_raw = 0;
     s_adc_mv = 0;
+    snprintf(s_key_event, sizeof(s_key_event), "-");
     pwm_out_set_duty_permille(0);
 }
 
 void eload_bind_keys(void)
 {
     key_attach(KEY_ID_0, BTN_PRESS_DOWN, on_key0);
+    key_attach(KEY_ID_0, BTN_SINGLE_CLICK, on_key0);
+    key_attach(KEY_ID_0, BTN_DOUBLE_CLICK, on_key0);
     key_attach(KEY_ID_0, BTN_LONG_PRESS_START, on_key0);
 }
 
@@ -99,8 +117,8 @@ void eload_draw(hagl_backend_t *display)
     int16_t w = (int16_t)display->width;
     int16_t bar_x0 = 8;
     int16_t bar_x1 = (int16_t)(w - 9);
-    int16_t bar_y0 = 78;
-    int16_t bar_y1 = 92;
+    int16_t bar_y0 = 54;
+    int16_t bar_y1 = 66;
     int16_t bar_span;
     int16_t fill_w;
     uint16_t bar_color;
@@ -152,12 +170,12 @@ void eload_draw(hagl_backend_t *display)
     hagl_put_text(display, wtext, 80, 26, WHITE, font6x9_ISO8859_1);
 
     ascii_to_wchar("DUTY", wtext, sizeof(wtext) / sizeof(wtext[0]));
-    hagl_put_text(display, wtext, 8, 46, GRAY, font6x9_ISO8859_1);
+    hagl_put_text(display, wtext, 8, 38, GRAY, font6x9_ISO8859_1);
     snprintf(text, sizeof(text), "%u %%  / %u %%",
              (unsigned)s_duty_percent,
              (unsigned)ELOAD_DUTY_MAX_PERCENT);
     ascii_to_wchar(text, wtext, sizeof(wtext) / sizeof(wtext[0]));
-    hagl_put_text(display, wtext, 80, 46, CYAN, font6x9_ISO8859_1);
+    hagl_put_text(display, wtext, 80, 38, CYAN, font6x9_ISO8859_1);
 
     bar_span = (int16_t)(bar_x1 - bar_x0);
     fill_w = (int16_t)((bar_span * (int16_t)s_duty_percent) / (int16_t)ELOAD_DUTY_MAX_PERCENT);
@@ -168,11 +186,26 @@ void eload_draw(hagl_backend_t *display)
     }
     hagl_draw_rectangle(display, bar_x0, bar_y0, bar_x1, bar_y1, GRAY);
 
-    ascii_to_wchar("PWM", wtext, sizeof(wtext) / sizeof(wtext[0]));
-    hagl_put_text(display, wtext, 8, 104, GRAY, font6x9_ISO8859_1);
-    snprintf(text, sizeof(text), "%lu kHz", (unsigned long)(freq_hz / 1000u));
+    snprintf(text, sizeof(text), "PWM GP%u  %lukHz",
+             (unsigned)PWM_OUT_GPIO_PIN,
+             (unsigned long)(freq_hz / 1000u));
     ascii_to_wchar(text, wtext, sizeof(wtext) / sizeof(wtext[0]));
-    hagl_put_text(display, wtext, 80, 104, WHITE, font6x9_ISO8859_1);
+    hagl_put_text(display, wtext, 8, 74, WHITE, font6x9_ISO8859_1);
+
+    snprintf(text, sizeof(text), "ADC GP%u  raw %u",
+             (unsigned)ADC_IN_GPIO_PIN,
+             (unsigned)s_adc_raw);
+    ascii_to_wchar(text, wtext, sizeof(wtext) / sizeof(wtext[0]));
+    hagl_put_text(display, wtext, 8, 90, WHITE, font6x9_ISO8859_1);
+
+    snprintf(text, sizeof(text), "KEY GP%u  %s",
+             (unsigned)KEY0_GPIO_PIN, s_key_event);
+    ascii_to_wchar(text, wtext, sizeof(wtext) / sizeof(wtext[0]));
+    hagl_put_text(display, wtext, 8, 106, CYAN, font6x9_ISO8859_1);
+
+    ascii_to_wchar("click+1  dbl-1  long 0", wtext,
+                   sizeof(wtext) / sizeof(wtext[0]));
+    hagl_put_text(display, wtext, 8, 120, GRAY, font6x9_ISO8859_1);
 }
 
 uint8_t eload_duty_percent(void)
