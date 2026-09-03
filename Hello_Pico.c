@@ -28,7 +28,7 @@ static void display_work(async_context_t *context, async_at_time_worker_t *worke
     absolute_time_t next;
 
     eload_sample();
-    eload_draw(display, fps);
+    eload_draw(display);
     hagl_flush(display);
     frames++;
 
