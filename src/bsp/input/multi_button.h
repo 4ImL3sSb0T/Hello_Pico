@@ -11,11 +11,21 @@
 // #include "common/event/event.h"
 
 // Configuration constants - can be modified according to your needs
+#ifndef TICKS_INTERVAL
 #define TICKS_INTERVAL          5    // ms - timer interrupt interval
+#endif
+#ifndef DEBOUNCE_TICKS
 #define DEBOUNCE_TICKS          3    // MAX 7 (0 ~ 7) - debounce filter depth
-#define SHORT_TICKS             (300 / TICKS_INTERVAL)   // short press threshold
+#endif
+#ifndef SHORT_TICKS
+#define SHORT_TICKS             (100 / TICKS_INTERVAL)   // short press threshold
+#endif
+#ifndef LONG_TICKS
 #define LONG_TICKS              (1000 / TICKS_INTERVAL)  // long press threshold
+#endif
+#ifndef PRESS_REPEAT_MAX_NUM
 #define PRESS_REPEAT_MAX_NUM    15   // maximum repeat counter value
+#endif
 
 // Forward declaration
 typedef struct _Button Button;

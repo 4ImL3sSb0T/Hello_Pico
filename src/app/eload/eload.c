@@ -203,7 +203,7 @@ void eload_draw(hagl_backend_t *display)
     ascii_to_wchar(text, wtext, sizeof(wtext) / sizeof(wtext[0]));
     hagl_put_text(display, wtext, 8, 106, CYAN, font6x9_ISO8859_1);
 
-    ascii_to_wchar("click+1  dbl-1  long 0", wtext,
+    ascii_to_wchar("click+1  dbl-1  long0", wtext,
                    sizeof(wtext) / sizeof(wtext[0]));
     hagl_put_text(display, wtext, 8, 120, GRAY, font6x9_ISO8859_1);
 }
