@@ -26,7 +26,9 @@
             ],
             "openOCDLaunchCommands": [
                 "adapter speed 5000"
-            ]
+            ],
+            // Cortex-Debug 1.12.1 waits 5s for GDB; ARM 15.2 GDB 16.x cold-start is ~5.6s on Windows
+            "preLaunchTask": "Warm GDB"
         },
         {
             "name": "Pico Debug (Cortex-Debug with external OpenOCD)",
@@ -46,7 +48,8 @@
             "overrideLaunchCommands": [
                 "monitor reset init",
                 "load \"${command:raspberry-pi-pico.launchTargetPath}\""
-            ]
+            ],
+            "preLaunchTask": "Warm GDB"
         },
     ]
 }

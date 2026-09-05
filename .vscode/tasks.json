@@ -18,6 +18,22 @@
             }
         },
         {
+            "label": "Warm GDB",
+            "type": "process",
+            "command": "${userHome}/.pico-sdk/toolchain/15_2_Rel1/bin/arm-none-eabi-gdb",
+            "args": ["--batch", "--interpreter=mi2", "-ex", "quit"],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "windows": {
+                "command": "${env:USERPROFILE}/.pico-sdk/toolchain/15_2_Rel1/bin/arm-none-eabi-gdb.exe"
+            }
+        },
+        {
             "label": "Run Project",
             "type": "process",
             "command": "${env:HOME}/.pico-sdk/picotool/2.3.0/picotool/picotool",
