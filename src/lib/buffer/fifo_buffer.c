@@ -21,7 +21,7 @@ int fifo_buffer_write(fifo_buffer_t *fifo, const uint8_t *data, size_t length) {
 
 int fifo_buffer_read(fifo_buffer_t *fifo, uint8_t *data, size_t length);
 
-int fifo_buffer_peek(fifo_buffer_t *fifo, uint8_t *data, size_t length);
+int fifo_buffer_peek(fifo_buffer_t *fifo, uint8_t *data, size_t length, size_t offset);
 
 int fifo_buffer_get_left(fifo_buffer_t *fifo);
 
