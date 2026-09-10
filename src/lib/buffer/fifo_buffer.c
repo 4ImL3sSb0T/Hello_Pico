@@ -11,7 +11,7 @@ static inline int fifo_buffer_is_empty(fifo_buffer_t *fifo) {
 
 #ifdef FIFO_BUFFER_USING_MUTEX
 static inline void fifo_buffer_lock(fifo_buffer_t *fifo) {
-    if (fifo->lock) fifo->lock(fifo->mutex)
+    if (fifo->lock) fifo->lock(fifo->mutex);
 }
 
 static inline void fifo_buffer_unlock(fifo_buffer_t *fifo) {
@@ -54,7 +54,7 @@ int fifo_buffer_write(fifo_buffer_t *fifo, const uint8_t *data, uint32_t length)
 #ifdef FIFO_BUFFER_USING_MUTEX
     fifo_buffer_lock(fifo);
 #endif
-
+//  可以用两段 memcpy 代替
     int left = fifo_buffer_get_left(fifo);
     if (left < 0 || (uint32_t)left < length) return -1; // Not enough space
 
@@ -101,7 +101,7 @@ int fifo_buffer_peek(fifo_buffer_t *fifo, uint8_t *data, uint32_t length, uint32
     fifo_buffer_lock(fifo);
 #endif
 
-    
+
 
 #ifdef FIFO_BUFFER_USING_MUTEX
     fifo_buffer_lock(fifo);

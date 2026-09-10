@@ -1,3 +1,6 @@
+#ifndef FIFO_BUFFER_H
+#define FIFO_BUFFER_H
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -33,3 +36,5 @@ int fifo_buffer_peek(fifo_buffer_t *fifo, uint8_t *data, uint32_t length, uint32
 int fifo_buffer_get_left(fifo_buffer_t *fifo);
 
 int fifo_buffer_get_used(fifo_buffer_t *fifo);
+
+#endif /* FIFO_BUFFER_H */
