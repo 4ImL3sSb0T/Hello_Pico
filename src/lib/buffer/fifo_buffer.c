@@ -114,7 +114,7 @@ int fifo_buffer_peek(fifo_buffer_t *fifo, uint8_t *data, uint32_t length, uint32
 
 
 #ifdef FIFO_BUFFER_USING_MUTEX
-    fifo_buffer_lock(fifo);
+    fifo_buffer_unlock(fifo);
 #endif
 }
 
