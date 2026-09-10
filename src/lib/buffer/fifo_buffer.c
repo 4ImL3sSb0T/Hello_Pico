@@ -20,7 +20,7 @@ static inline void fifo_buffer_unlock(fifo_buffer_t *fifo) {
 #endif
 
 #ifdef FIFO_BUFFER_USING_MUTEX
-int fifo_buffer_init(fifo_buffer_t *fifo, uint8_t *buffer, size_t size, void *mutex, fifo_buffer_mutex_lock_t lock, fifo_buffer_mutex_unlock_t unlock)
+int fifo_buffer_init(fifo_buffer_t *fifo, uint8_t *buffer, uint32_t size, void *mutex, fifo_buffer_mutex_lock_t lock, fifo_buffer_mutex_unlock_t unlock)
 {
     if (!fifo || !buffer || size == 0) return -1; // Invalid parameters
 
@@ -56,7 +56,12 @@ int fifo_buffer_write(fifo_buffer_t *fifo, const uint8_t *data, uint32_t length)
 #endif
 //  可以用两段 memcpy 代替
     int left = fifo_buffer_get_left(fifo);
-    if (left < 0 || (uint32_t)left < length) return -1; // Not enough space
+    if (left < 0 || (uint32_t)left < length) {
+#ifdef FIFO_BUFFER_USING_MUTEX
+        fifo_buffer_unlock(fifo);
+#endif
+        return -1; // Not enough space
+    }
 
     for (size_t i = 0; i < length; ++i) {
         fifo->buffer[fifo->head] = data[i];
@@ -78,7 +83,12 @@ int fifo_buffer_read(fifo_buffer_t *fifo, uint8_t *data, uint32_t length) {
 #endif
 
     int actual_read_length = fifo_buffer_get_used(fifo);
-    if (actual_read_length == -1) return -1; // Invalid parameter
+    if (actual_read_length == -1) {
+#ifdef FIFO_BUFFER_USING_MUTEX
+        fifo_buffer_unlock(fifo);
+#endif
+        return -1; // Invalid parameter
+    }
     if (length < (uint32_t)actual_read_length) {
         actual_read_length = length;
     }
