@@ -1,13 +1,4 @@
 #include "fifo_buffer.h"
-#include <string.h>
-
-static inline int fifo_buffer_is_full(fifo_buffer_t *fifo) {
-    return ((fifo->head + 1) % fifo->size) == fifo->tail;
-}
-
-static inline int fifo_buffer_is_empty(fifo_buffer_t *fifo) {
-    return fifo->head == fifo->tail;
-}
 
 #ifdef FIFO_BUFFER_USING_MUTEX
 static inline void fifo_buffer_lock(fifo_buffer_t *fifo) {
@@ -22,7 +13,7 @@ static inline void fifo_buffer_unlock(fifo_buffer_t *fifo) {
 #ifdef FIFO_BUFFER_USING_MUTEX
 int fifo_buffer_init(fifo_buffer_t *fifo, uint8_t *buffer, uint32_t size, void *mutex, fifo_buffer_mutex_lock_t lock, fifo_buffer_mutex_unlock_t unlock)
 {
-    if (!fifo || !buffer || size == 0) return -1; // Invalid parameters
+    if (!fifo || !buffer || size < 2) return -1; // size 是数组真实字节数，可用容量 size - 1
 
     fifo->buffer = buffer;
     fifo->size = size;
@@ -37,7 +28,7 @@ int fifo_buffer_init(fifo_buffer_t *fifo, uint8_t *buffer, uint32_t size, void *
 #else
 int fifo_buffer_init(fifo_buffer_t *fifo, uint8_t *buffer, uint32_t size)
 {
-    if (!fifo || !buffer || size == 0) return -1; // Invalid parameters
+    if (!fifo || !buffer || size < 2) return -1; // size 是数组真实字节数，可用容量 size - 1
 
     fifo->buffer = buffer;
     fifo->size = size;
