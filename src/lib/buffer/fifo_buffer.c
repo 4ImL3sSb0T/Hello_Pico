@@ -111,11 +111,34 @@ int fifo_buffer_peek(fifo_buffer_t *fifo, uint8_t *data, uint32_t length, uint32
     fifo_buffer_lock(fifo);
 #endif
 
+    int actual_read_length = fifo_buffer_get_used(fifo);
+    if (actual_read_length == -1) {
+#ifdef FIFO_BUFFER_USING_MUTEX
+        fifo_buffer_unlock(fifo);
+#endif
+        return -1; // Invalid parameter
+    }
+    
+    if (offset >= (uint32_t)actual_read_length) {
+#ifdef FIFO_BUFFER_USING_MUTEX
+        fifo_buffer_unlock(fifo);
+#endif
+        return 0; // Offset exceeds available data
+    }
 
+    if (length > (uint32_t)(actual_read_length - offset)) {
+        length = actual_read_length - offset;
+    }
+
+    for (size_t i = 0; i < length; ++i) {
+        data[i] = fifo->buffer[(fifo->tail + i + offset) % fifo->size];
+    }
 
 #ifdef FIFO_BUFFER_USING_MUTEX
     fifo_buffer_unlock(fifo);
 #endif
+
+    return length;
 }
 
 int fifo_buffer_get_left(fifo_buffer_t *fifo) {
